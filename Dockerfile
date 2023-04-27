@@ -29,20 +29,45 @@
 
 # this is recommended by https://towardsdatascience.com/how-to-deploy-a-panel-app-to-hugging-face-using-docker-6189e3789718
 
-FROM python:3.9
+# FROM python:3.9
 
-WORKDIR /code
+# WORKDIR /code
 
-COPY ./requirements.txt /code/requirements.txt
+# COPY ./requirements.txt /code/requirements.txt
 
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+# RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-RUN pwd
+# RUN pwd
 
-COPY . .
+# COPY . .
 
-RUN dir -s
+# RUN dir -s
 
-CMD ["python", "dash-example-app.py"] 
+# CMD ["python", "dash-example-app.py"] 
 
 #  (does the rest of this apply for dash app?) , "--address", "0.0.0.0", "--port", "7860", "--allow-websocket-origin", "sophiamyang-panel-example.hf.space"]
+
+
+
+# this was recommended by https://towardsdatascience.com/deploy-containerized-plotly-dash-app-to-heroku-with-ci-cd-f82ca833375c
+
+FROM python:3.9-slim-buster
+
+WORKDIR /container_app
+
+COPY .requirements.txt /app/requirements.txt
+
+RUN pip install --upgrade pip
+RUN pip install -r /requirements.txt
+
+COPY . /container_app
+
+RUN useradd -m containerUser
+USER containerUser
+
+# filling in and hard-coding port number from example above
+CMD gunicorn --bind 0.0.0.0:7860 app:server
+
+
+
+

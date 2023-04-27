@@ -12,6 +12,9 @@ STYLE = "https://codepen.io/chriddyp/pen/bWLwgP.css"
 
 app = Dash(__name__, external_stylesheets=[STYLE])
 
+# to serve 
+server = app.server
+
 # --- read in data and create initial state
 
 tracts = (
@@ -356,5 +359,8 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,selected_
     return race_bars, timeline
 
 # ------------------------------------------------------------------------------
-if __name__ == '__main__':
-    app.run_server(host="0.0.0.0", port="8050", debug=True)
+
+# this only serves locally (?)
+
+# if __name__ == '__main__':
+#     app.run_server(host="0.0.0.0", port="8050", debug=True)
