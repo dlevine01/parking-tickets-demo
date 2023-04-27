@@ -59,7 +59,7 @@ WORKDIR /container_app
 RUN pwd
 RUN dir -s
 
-COPY ./requirements.txt /app/requirements.txt
+COPY ./requirements.txt /container_app/requirements.txt
 
 RUN pip install --upgrade pip
 RUN pip install -r /requirements.txt
