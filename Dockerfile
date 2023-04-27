@@ -73,7 +73,7 @@ RUN useradd -m containerUser
 USER containerUser
 
 # filling in and hard-coding port number from example above
-CMD gunicorn --bind 0.0.0.0:7860 app:server
+CMD gunicorn --bind 0.0.0.0:7860 dash-example-app:server
 
 
 
