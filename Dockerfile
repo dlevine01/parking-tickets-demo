@@ -55,7 +55,11 @@ FROM python:3.9-slim-buster
 
 WORKDIR /container_app
 
-COPY .requirements.txt /app/requirements.txt
+
+RUN pwd
+RUN dir -s
+
+COPY ./requirements.txt /app/requirements.txt
 
 RUN pip install --upgrade pip
 RUN pip install -r /requirements.txt
