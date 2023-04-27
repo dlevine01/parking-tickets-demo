@@ -43,6 +43,6 @@ COPY . .
 
 RUN dir -s
 
-CMD ["python", "dash-example-app"] 
+CMD ["python", "dash-example-app.py"] 
 
 #  (does the rest of this apply for dash app?) , "--address", "0.0.0.0", "--port", "7860", "--allow-websocket-origin", "sophiamyang-panel-example.hf.space"]
