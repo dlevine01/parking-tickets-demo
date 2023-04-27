@@ -1,22 +1,22 @@
-# eample from https://github.com/Coding-with-Adam/Dash-by-Plotly/blob/master/Other/Dash_Introduction/intro.py
-
 import pandas as pd
 import geopandas as gpd
 import plotly.express as px  # (version 4.7.0 or higher)
 import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output  # pip install dash (version 2.0.0 or higher)
 
-# BOOTSTRAP_CSS = "https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css"
+external_stylesheets = [
+    "https://codepen.io/chriddyp/pen/bWLwgP.css",
+    'https://fonts.googleapis.com/css?family=Montserrat%3A700%7COpen+Sans%3A400%2C700&ver=6.1.1',
+    'https://comptroller.nyc.gov/wp-content/themes/comptroller_theme_2021/css/customColor.css?ver=1647888886',
+    'https://comptroller.nyc.gov/wp-content/themes/comptroller_theme_2021/css/custom2021.css?ver=1665673425'
+]
 
-STYLE = "https://codepen.io/chriddyp/pen/bWLwgP.css"
+app = Dash(__name__, external_stylesheets=external_stylesheets)
 
-app = Dash(__name__, external_stylesheets=[STYLE])
-
-# to serve 
+# to serve online
 server = app.server
 
-# --- read in data and create initial state
-
+# ---------- read in data and create initial state
 tracts = (
     gpd.read_file(
         'processed data/tracts_4326_w_pcts.geojson',
@@ -89,41 +89,6 @@ app.layout = html.Div(id='app', children=[
 
     html.H1("Explore parking tickets by type"),
 
-    html.Div(id='components_container', children=[
-
-        html.Div(id='map_container', children=[
-            # html.H2('map'),
-
-            html.H5(children=['map loading...'], id='map_title'),
-
-            dcc.Graph(
-                id='map', 
-                figure=initial_map_fig
-            ),
-        ], style={'flex':5}
-        ),
-
-        html.Div(id='timeline_and_bars_container', children=[
-            
-            # html.H2('timeline'),
-
-            dcc.Graph(
-                id='timeline',
-                figure=initial_timeline
-            ),
-
-            # html.H2('bars'),
-
-            dcc.Graph(
-                id='race_bar_plot', 
-                figure={}
-            )
-        ],style={'flex':3}
-        )
-
-    ],style={'display': 'flex', 'flex-direction': 'row'}
-    ),
-
     html.Div(id='selector_container', children=[
     
         html.P('Select violation types:'),
@@ -134,7 +99,49 @@ app.layout = html.Div(id='app', children=[
             multi=True,
             value=['FIRE HYDRANT'],
             ),
-    ])
+    ]),
+
+    html.Div(id='components_container', children=[
+
+        html.Div(id='map_container', children=[
+
+            html.H6(children=['map loading...'], id='map_title'),
+
+            dcc.Graph(
+                id='map', 
+                figure=initial_map_fig,
+                config={
+                    'displaylogo': False
+                },
+                style={'height':'70vh'}
+            ),
+        ], style={'flex':5}
+        ),
+
+        html.Div(id='timeline_and_bars_container', children=[
+
+            dcc.Graph(
+                id='timeline',
+                figure=initial_timeline,
+                config={
+                    'modeBarButtonsToRemove': ['zoom_in', 'zoom_out','autoscale'],
+                    'displaylogo': False
+                }
+            ),
+
+            dcc.Graph(
+                id='race_bar_plot', 
+                figure={},
+                config={
+                    'displayModeBar': False,
+                    'displaylogo': False
+                }
+            )
+        ],style={'flex':3}
+        )
+
+    ],style={'display': 'flex', 'flex-direction': 'row'}
+    )
 
 ])
 
@@ -196,7 +203,6 @@ def update_map(selected_timeline_area,selected_violation):
         },
         zoom=9, 
         center = {"lat": 40.7, "lon": -74},
-        height=600
     )
 
     fig.update_layout(
@@ -210,46 +216,15 @@ def update_map(selected_timeline_area,selected_violation):
             lenmode="fraction",
             len=0.5,
             thicknessmode='fraction',
-            thickness=0.035
+            thickness=0.035,
         ),
         margin=dict(l=0, r=0, t=0, b=0),
-        )
-
+    )
 
     fig = fig.update_traces(
         marker_line_width=0
         )
 
-    # Plotly Express
-    # fig = px.choropleth(
-    #     data_frame=dff,
-    #     locationmode='USA-states',
-    #     locations='state_code',
-    #     scope="usa",
-    #     color='Pct of Colonies Impacted',
-    #     hover_data=['State', 'Pct of Colonies Impacted'],
-    #     color_continuous_scale=px.colors.sequential.YlOrRd,
-    #     labels={'Pct of Colonies Impacted': '% of Bee Colonies'},
-    #     template='plotly_dark'
-    # )
-
-    # Plotly Graph Objects (GO)
-    # fig = go.Figure(
-    #     data=[go.Choropleth(
-    #         locationmode='USA-states',
-    #         locations=dff['state_code'],
-    #         z=dff["Pct of Colonies Impacted"].astype(float),
-    #         colorscale='Reds',
-    #     )]
-    # )
-    #
-    # fig.update_layout(
-    #     title_text="Bees Affected by Mites in the USA",
-    #     title_xanchor="center",
-    #     title_font=dict(size=24),
-    #     title_x=0.5,
-    #     geo=dict(scope='usa'),
-    # )
 
     return title, fig, None
 
@@ -257,15 +232,24 @@ def update_map(selected_timeline_area,selected_violation):
     [Output(component_id='race_bar_plot', component_property='figure'),
      Output(component_id='timeline', component_property='figure')],
     [Input(component_id='map', component_property='selectedData'),
+     Input(component_id='map',component_property='clickData'),
      Input(component_id='violation_type_selection', component_property='value')]
 )
-def update_race_bars_and_timeline_from_map_selection(selected_map_area,selected_violation):
+def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_tract,selected_violation):
 
     print("called 'update_race_bars_and_timeline_from_map_selection'")
+
+    selected_GEOIDs = False
 
     if bool(selected_map_area):
 
         selected_GEOIDs = [i['location'] for i in selected_map_area['points']]
+
+    elif clicked_tract:
+
+        selected_GEOIDs = [clicked_tract['points'][0]['location']]
+
+    if selected_GEOIDs:
 
         print(f" with 'tracts_selected' including {selected_GEOIDs[0] if selected_GEOIDs else 'none'}")
 
@@ -328,11 +312,12 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,selected_
     )
 
     race_bars.update_layout(
-        margin=dict(l=20, r=0, t=100, b=10),
+        margin=dict(l=20, r=20, t=100, b=10),
         yaxis_title='Percent of population',
         xaxis_title=None,
         yaxis_tickformat='.0%',
-
+        legend_title='Area',
+        font_family="'Open Sans', Helvetica, Arial, sans-serif"
     )
 
     timeline = px.line(
@@ -351,7 +336,8 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,selected_
         ),
         yaxis_title="Tickets",
         showlegend=False,
-        margin=dict(l=20, r=0, t=40, b=10),
+        margin=dict(l=20, r=20, t=40, b=10),
+        font_family="'Open Sans', Helvetica, Arial, sans-serif"
     )
 
     timeline.update_xaxes(rangeslider_thickness = 0.08)
@@ -360,7 +346,7 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,selected_
 
 # ------------------------------------------------------------------------------
 
-# this only serves locally (?)
+# this serves locally 
 
-# if __name__ == '__main__':
-#     app.run_server(host="0.0.0.0", port="8050", debug=True)
+if __name__ == '__main__':
+    app.run_server(debug=True)
