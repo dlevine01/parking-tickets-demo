@@ -149,8 +149,8 @@ app.layout = html.Div(id='app', children=[
 # Connect the Plotly graphs with Dash Components
 @app.callback(
     [Output(component_id='map_title', component_property='children'),
-     Output(component_id='map', component_property='figure'),
-     Output(component_id='map', component_property='selectedData')],
+     Output(component_id='map', component_property='figure'),],
+     #Output(component_id='map', component_property='selectedData')],
     [Input(component_id='timeline',component_property='relayoutData'),
     Input(component_id='violation_type_selection', component_property='value')]
 )
@@ -199,7 +199,7 @@ def update_map(selected_timeline_area,selected_violation):
         mapbox_style='carto-positron',
         hover_data={
             'GEOID':False,
-            'tickets count':':.1f'
+            'tickets count':':.0f'
         },
         zoom=9, 
         center = {"lat": 40.7, "lon": -74},
@@ -222,11 +222,15 @@ def update_map(selected_timeline_area,selected_violation):
     )
 
     fig = fig.update_traces(
-        marker_line_width=0
+        marker_opacity=0.75,
+        marker_line=dict(
+            width=0,
+            color='rgba(255,255,255,0)'
         )
+    )
 
 
-    return title, fig, None
+    return title, fig, # None
 
 @app.callback(
     [Output(component_id='race_bar_plot', component_property='figure'),
@@ -275,7 +279,7 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
             .groupby('Issue Date')
             .sum()
             .rolling(3,1,center=True).mean()
-            .to_frame()
+            .reset_index()
         )
 
         timeline_title = 'Selected area'
@@ -296,12 +300,10 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
             .groupby('Issue Date')
             .sum()
             .rolling(3,1,center=True).mean()
-            .to_frame()
+            .reset_index()
         )
 
         timeline_title = None
-
-
 
     race_bars = px.bar(
         race_bars_data,
@@ -322,14 +324,24 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
 
     timeline = px.line(
         selected_area_timeline_data,
+        x='Issue Date',
+        y='tickets count',
         title= timeline_title,
         height=350,
-        template='plotly_white'
+        template='plotly_white',
+        hover_data={
+            'Issue Date':False,
+            'tickets count':'.0f'
+        }
+    )
+
+    timeline.update_traces(
+        hovertemplate=None
     )
 
     timeline.update_layout(
         xaxis=dict(
-            rangeslider=dict(
+            rangeselector=dict(
                 visible=True
             ),
             type="date"
@@ -337,10 +349,13 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
         yaxis_title="Tickets",
         showlegend=False,
         margin=dict(l=20, r=20, t=40, b=10),
-        font_family="'Open Sans', Helvetica, Arial, sans-serif"
+        font_family="'Open Sans', Helvetica, Arial, sans-serif",
+        hovermode='x',
     )
 
     timeline.update_xaxes(rangeslider_thickness = 0.08)
+
+    print(selected_area_timeline_data.head(3))
 
     return race_bars, timeline
 
