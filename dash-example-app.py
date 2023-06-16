@@ -292,7 +292,7 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
         
         race_bars_data = total_race_pct.join(no_selection_race_pct)
 
-        race_bars_title = 'Race and ethnicity citywide'
+        race_bars_title = 'Race and ethnicity citywide (select area on map to compare)'
 
         selected_area_timeline_data = (
             tickets
@@ -354,8 +354,6 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
     )
 
     timeline.update_xaxes(rangeslider_thickness = 0.08)
-
-    print(selected_area_timeline_data.head(3))
 
     return race_bars, timeline
 

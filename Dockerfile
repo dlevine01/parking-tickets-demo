@@ -55,14 +55,12 @@ FROM python:3.9-slim-buster
 
 WORKDIR /container_app
 
-
-RUN pwd
-RUN ls
+# RUN pwd
+# RUN ls
 
 COPY ./requirements.txt /container_app/requirements.txt
 
-RUN ls
-
+# RUN ls
 
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
