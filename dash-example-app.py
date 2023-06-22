@@ -19,7 +19,7 @@ server = app.server
 # ---------- read in data and create initial state
 tracts = (
     gpd.read_file(
-        'processed data/tracts_4326_w_pcts.geojson',
+        'processed data/tracts_4326_w_pcts_simplified.json',
         dtype={'GEOID':'str'}
         )
     .set_index('GEOID')
@@ -27,11 +27,14 @@ tracts = (
 
 tickets = (
     pd.read_csv(
-        'processed data/tickets_by_tract_by_month_by_type_from_geosupport_return.csv', 
+        'processed data/tickets_by_tract_by_month_by_category.csv', 
         parse_dates=['year-month'],
         dtype={'GEOID':'str'}
         )
-    .rename(columns={'year-month':'Issue Date'})
+    .rename(columns={
+        'year-month':'Issue Date',
+        'category':'Violation Type'
+        })
     .set_index(['GEOID','Issue Date','Violation Type'])
     ['tickets count']
     .sort_index()
@@ -40,7 +43,7 @@ tickets = (
 
 # -- 
 
-total_tickets_by_month = (
+total_tickets_by_quarter = (
     tickets
     .groupby('Issue Date')
     .sum()
@@ -97,7 +100,7 @@ app.layout = html.Div(id='app', children=[
             id='violation_type_selection',
             options=violation_types,
             multi=True,
-            value=['FIRE HYDRANT'],
+            value=['Street cleaning'],
             ),
     ]),
 
@@ -176,7 +179,7 @@ def update_map(selected_timeline_area,selected_violation):
 
     print(f" and 'selected_dates = {selected_dates}")
 
-    display_dates = " - ".join([pd.to_datetime(date).strftime('%b %Y') for date in selected_dates])
+    display_dates = " - ".join([pd.to_datetime(date).strftime(r'%b %Y') for date in selected_dates])
 
     display_violation = ', '.join([violation.capitalize() for violation in selected_violation])
 
