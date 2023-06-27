@@ -11,12 +11,14 @@ external_stylesheets = [
     'https://comptroller.nyc.gov/wp-content/themes/comptroller_theme_2021/css/custom2021.css?ver=1665673425'
 ]
 
+# create app
 app = Dash(__name__, external_stylesheets=external_stylesheets)
 
 # to serve online
 server = app.server
 
 # ---------- read in data and create initial state
+# could this be read directly as geojson, not through geodataframe?
 tracts = (
     gpd.read_file(
         'processed data/tracts_4326_w_pcts_simplified.json',
@@ -40,10 +42,10 @@ tickets = (
     .sort_index()
 )
 
+violation_types = tickets.index.get_level_values('Violation Type').unique()
 
-# -- 
-
-total_tickets_by_quarter = (
+# sum by month for timeline
+total_tickets_by_month = (
     tickets
     .groupby('Issue Date')
     .sum()
@@ -51,8 +53,7 @@ total_tickets_by_quarter = (
     .to_frame()
 )
 
-violation_types = tickets.index.get_level_values('Violation Type').unique()
-
+# total race pcts for citywide bars
 total_race_pct = (
     (
         (tracts[['White','Black','Asian','Hispanic']].sum())
@@ -63,6 +64,8 @@ total_race_pct = (
     .to_frame()
 )
 
+# initiate (empty) map with basemap base
+# (replace with spinner?)
 initial_map_fig = px.choropleth_mapbox(
     mapbox_style='carto-positron',
     zoom=9, 
@@ -83,6 +86,8 @@ initial_map_fig = px.choropleth_mapbox(
 #     )
 # )
 
+# initiate blank timeline; first callback call will fill it in
+# (do I need this?)
 initial_timeline = dict()
 
 
@@ -101,15 +106,19 @@ app.layout = html.Div(id='app', children=[
             options=violation_types,
             multi=True,
             value=['Street cleaning'],
-            ),
+        )
+
     ]),
 
     html.Div(id='components_container', children=[
 
         html.Div(id='map_container', children=[
 
+            # initiates title; first callback will overwrite this title
+            # (replace with spinnner?)
             html.H6(children=['map loading...'], id='map_title'),
 
+            # container and configuration for map figure
             dcc.Graph(
                 id='map', 
                 figure=initial_map_fig,
@@ -118,11 +127,16 @@ app.layout = html.Div(id='app', children=[
                 },
                 style={'height':'70vh'}
             ),
-        ], style={'flex':5}
+        ], 
+        
+        # set flex 5 width (could move to external stylesheet by id)
+        style={'flex':5}
+        
         ),
 
         html.Div(id='timeline_and_bars_container', children=[
 
+            # container and configuration for timeline
             dcc.Graph(
                 id='timeline',
                 figure=initial_timeline,
@@ -132,6 +146,7 @@ app.layout = html.Div(id='app', children=[
                 }
             ),
 
+            # container and configuration for race bars
             dcc.Graph(
                 id='race_bar_plot', 
                 figure={},
@@ -149,7 +164,10 @@ app.layout = html.Div(id='app', children=[
 ])
 
 # ------------------------------------------------------------------------------
+# callbacks
 # Connect the Plotly graphs with Dash Components
+
+# to update map on selection of timeline or violation type
 @app.callback(
     [Output(component_id='map_title', component_property='children'),
      Output(component_id='map', component_property='figure'),],
@@ -159,10 +177,14 @@ app.layout = html.Div(id='app', children=[
 )
 def update_map(selected_timeline_area,selected_violation):
     
+    # log what it's doing
+    # (werkzeug might be more useful but here's a summary )
     print("called 'update_map'")
     print(f" with 'selected_violation' = {selected_violation}")
     print(f" with 'selected_timeline_area' = {selected_timeline_area}")
 
+    # get time range from timeline, if the timeline has been selected
+    # (this selects highly granular timestamps; could amke this quantum; and also slightly delay the action until mouseup)
     if selected_timeline_area is None:
         selected_timeline_area = dict()
 
@@ -179,12 +201,14 @@ def update_map(selected_timeline_area,selected_violation):
 
     print(f" and 'selected_dates = {selected_dates}")
 
+    # display the selection
     display_dates = " - ".join([pd.to_datetime(date).strftime(r'%b %Y') for date in selected_dates])
 
     display_violation = ', '.join([violation.capitalize() for violation in selected_violation])
 
     title = f'Ticket type: {display_violation} & Date range: {display_dates}'
 
+    # subset the data
     selected_tickets = (
         tickets
         .loc[:,slice(*selected_dates),selected_violation]
@@ -193,6 +217,7 @@ def update_map(selected_timeline_area,selected_violation):
         .reset_index()
     )
 
+    # create and configure map fig
     fig = px.choropleth_mapbox(
         data_frame=selected_tickets,
         color='tickets count',
@@ -208,6 +233,7 @@ def update_map(selected_timeline_area,selected_violation):
         center = {"lat": 40.7, "lon": -74},
     )
 
+    # customize legend
     fig.update_layout(
         coloraxis_colorbar=dict(
             title="Tickets",
@@ -224,7 +250,8 @@ def update_map(selected_timeline_area,selected_violation):
         margin=dict(l=0, r=0, t=0, b=0),
     )
 
-    fig = fig.update_traces(
+    # customize tract geometry shapes (hide border lines)
+    fig.update_traces(
         marker_opacity=0.75,
         marker_line=dict(
             width=0,
@@ -233,8 +260,9 @@ def update_map(selected_timeline_area,selected_violation):
     )
 
 
-    return title, fig, # None
+    return title, fig
 
+# to update timeline and race bars on selection of map or violation type
 @app.callback(
     [Output(component_id='race_bar_plot', component_property='figure'),
      Output(component_id='timeline', component_property='figure')],
@@ -244,24 +272,30 @@ def update_map(selected_timeline_area,selected_violation):
 )
 def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_tract,selected_violation):
 
+    # log function call
     print("called 'update_race_bars_and_timeline_from_map_selection'")
 
+    # get the tracts that were selected or clicked on map
+    # this handles a selection first, then a click if no selection. it's a little buggy; probably it whould use the last interaction to direct the control flow)
+    
+    # clear selection
     selected_GEOIDs = False
 
+    # get GEOID value(s) from selected data dict passed back from map selection/click
     if bool(selected_map_area):
-
         selected_GEOIDs = [i['location'] for i in selected_map_area['points']]
 
     elif clicked_tract:
-
         selected_GEOIDs = [clicked_tract['points'][0]['location']]
 
     if selected_GEOIDs:
 
         print(f" with 'tracts_selected' including {selected_GEOIDs[0] if selected_GEOIDs else 'none'}")
 
+        # subset tracts to selection
         tracts_selected = tracts.loc[selected_GEOIDs]
 
+        # recompute race pcts for selected tracts
         selection_race_pct = (
             (
                 (tracts_selected[['White','Black','Asian','Hispanic']].sum())
@@ -276,6 +310,7 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
 
         race_bars_title = 'Race and ethnicity citywide and selected area'
 
+        # recompute timeline from selected area and selected type
         selected_area_timeline_data = (
             tickets
             .loc[selected_GEOIDs,:,selected_violation]
@@ -291,12 +326,14 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
         
         print(" with no selection")
 
+        # generate empty race columns
         no_selection_race_pct = pd.DataFrame(index=['White','Black','Asian','Hispanic'],columns=[''],data=[0,0,0,0])
         
         race_bars_data = total_race_pct.join(no_selection_race_pct)
 
         race_bars_title = 'Race and ethnicity citywide (select area on map to compare)'
 
+        # compute timeline from all tracts
         selected_area_timeline_data = (
             tickets
             .loc[:,:,selected_violation]
@@ -306,8 +343,9 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
             .reset_index()
         )
 
-        timeline_title = None
+        timeline_title = 'Total citywide'
 
+    # generate race bars from whichever data created above
     race_bars = px.bar(
         race_bars_data,
         barmode='group',
@@ -325,6 +363,7 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
         font_family="'Open Sans', Helvetica, Arial, sans-serif"
     )
 
+    # generate timeline from whichever data selected above
     timeline = px.line(
         selected_area_timeline_data,
         x='Issue Date',
@@ -365,4 +404,21 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
 # this serves locally 
 
 if __name__ == '__main__':
+
+    import os
+    from werkzeug.middleware.profiler import ProfilerMiddleware
+
+    PROF_DIR = 'profiles'
+
+    if os.getenv("PROFILER", None):
+        app.server.config["PROFILE"] = True
+        app.server.wsgi_app = ProfilerMiddleware(
+            app.server.wsgi_app, 
+            sort_by=["cumtime"], 
+            restrictions=[50],
+            stream=None,
+            profile_dir=PROF_DIR
+        )
     app.run_server(debug=True)
+
+
