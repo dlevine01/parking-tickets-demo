@@ -225,14 +225,13 @@ app.layout = html.Div(id='app', children=[
             )
         ]),
 
-        dcc.Loading(id='loading', type='circle', children = [
+        html.Div(id='components_container', children=[
 
-            html.Div(id='components_container', children=[
-
-                html.Div(id='map_container', children=[
+            html.Div(id='map_container', children=[
+            
+                dcc.Loading(id='map_loading', type='circle', children = [
 
                     # initiates title; first callback will overwrite this title
-                    # (replace with spinnner?)
                     html.H6(children=['map loading...'], id='map_title'),
 
                     # container and configuration for map figure
@@ -243,10 +242,12 @@ app.layout = html.Div(id='app', children=[
                     ),
 
                     html.P(children=[''], id='double_click')
-                ]
-                ),
+                ])
+            ]),
 
-                html.Div(id='timeline_and_bars_container', children=[
+            html.Div(id='timeline_and_bars_container', children=[
+
+                dcc.Loading(id="timeline_and_bars_loading", type='default', children=[
 
                     # container and configuration for timeline
                     dcc.Graph(
@@ -263,7 +264,7 @@ app.layout = html.Div(id='app', children=[
                     )
                 ])
 
-            ])
+            ])  
 
         ])
         

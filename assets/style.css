@@ -3,6 +3,22 @@
     flex-direction: row
 }
 
+/* ----  */
+/* these prevent the spinners from making the figs underneath hidden while firing the loading spinner (so the loading spinner will run on top of fig, no flickering fig */
+/* (this may or may not be a better looking ui) */
+/* from https://community.plotly.com/t/loading-component-with-transparent-overlay/28901/3 */
+
+#map_container > div {
+    visibility: visible !important;
+}
+
+#timeline_and_bars_container > div {
+    visibility: visible !important;
+}
+
+/* -end- */
+
+
 #map_container {
     flex:5
 }
@@ -14,3 +30,8 @@
 #timeline_and_bars_container {
     flex:3
 }
+
+#double_click {
+    text-align: right
+}
+
