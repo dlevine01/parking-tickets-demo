@@ -211,59 +211,63 @@ race_bars_fig.update_layout(
 
 app.layout = html.Div(id='app', children=[
 
-    html.H1("Explore parking tickets by type"),
+        html.H1("Explore parking tickets by type"),
 
-    html.Div(id='selector_container', children=[
-    
-        html.P('Select violation types:'),
+        html.Div(id='selector_container', children=[
+        
+            html.P('Select violation types:'),
 
-        dcc.Dropdown(
-            id='violation_type_selection',
-            options=violation_types,
-            multi=True,
-            value=[INITIAL_VIOLATION_TYPE],
-        )
-
-    ]),
-
-    html.Div(id='components_container', children=[
-
-        html.Div(id='map_container', children=[
-
-            # initiates title; first callback will overwrite this title
-            # (replace with spinnner?)
-            html.H6(children=['map loading...'], id='map_title'),
-
-            # container and configuration for map figure
-            dcc.Graph(
-                id='map', 
-                figure=map_fig,
-                config=FIG_DISPLAY_CONFIG
-            ),
-
-            html.P(children=['double-click to unselect'], id='double_click')
+            dcc.Dropdown(
+                id='violation_type_selection',
+                options=violation_types,
+                multi=True,
+                value=[INITIAL_VIOLATION_TYPE],
+            )
         ]),
 
-        html.Div(id='timeline_and_bars_container', children=[
+        dcc.Loading(id='loading', type='circle', children = [
 
-            # container and configuration for timeline
-            dcc.Graph(
-                id='timeline',
-                figure=timeline_fig,
-                config=FIG_DISPLAY_CONFIG
-            ),
+            html.Div(id='components_container', children=[
 
-            # container and configuration for race bars
-            dcc.Graph(
-                id='race_bar_plot', 
-                figure=race_bars_fig,
-                config=FIG_DISPLAY_CONFIG 
-            )
+                html.Div(id='map_container', children=[
+
+                    # initiates title; first callback will overwrite this title
+                    # (replace with spinnner?)
+                    html.H6(children=['map loading...'], id='map_title'),
+
+                    # container and configuration for map figure
+                    dcc.Graph(
+                        id='map', 
+                        figure=map_fig,
+                        config=FIG_DISPLAY_CONFIG
+                    ),
+
+                    html.P(children=[''], id='double_click')
+                ]
+                ),
+
+                html.Div(id='timeline_and_bars_container', children=[
+
+                    # container and configuration for timeline
+                    dcc.Graph(
+                        id='timeline',
+                        figure=timeline_fig,
+                        config=FIG_DISPLAY_CONFIG
+                    ),
+
+                    # container and configuration for race bars
+                    dcc.Graph(
+                        id='race_bar_plot', 
+                        figure=race_bars_fig,
+                        config=FIG_DISPLAY_CONFIG 
+                    )
+                ])
+
+            ])
+
         ])
-
+        
     ])
-
-])
 
 # ------------------------------------------------------------------------------
 # callbacks
@@ -334,7 +338,8 @@ def update_map(selected_timeline_area,selected_violation):
 # to update timeline and race bars on selection of map or violation type
 @app.callback(
     [Output(component_id='race_bar_plot', component_property='figure'),
-     Output(component_id='timeline', component_property='figure')],
+     Output(component_id='timeline', component_property='figure'),
+     Output(component_id='double_click',component_property='children')],
     [Input(component_id='map', component_property='selectedData'),
     #  Input(component_id='map',component_property='clickData'),
      Input(component_id='violation_type_selection', component_property='value')]
@@ -346,10 +351,12 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,selected_
     
     # clear selection
     selected_GEOIDs = False
+    double_click_text = ''
 
     # get GEOID value(s) from selected data dict passed back from map selection/click
     if bool(selected_map_area):
         selected_GEOIDs = [i['location'] for i in selected_map_area['points']]
+        double_click_text = 'Double-click map to remove selection'
 
     # elif clicked_tract:
     #     selected_GEOIDs = [clicked_tract['points'][0]['location']]
@@ -399,8 +406,6 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,selected_
         patched_timeline = Patch()
         patched_timeline['data'][0]['y'] = selected_area_timeline_data
         patched_timeline['layout']['title'] = timeline_title
-
-        return patched_race_bars, patched_timeline
     
     else:
 
@@ -431,7 +436,7 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,selected_
         patched_timeline['data'][0]['y'] = selected_area_timeline_data
         patched_timeline['layout']['title'] = timeline_title
 
-        return patched_race_bars, patched_timeline
+    return patched_race_bars, patched_timeline, double_click_text
 
 
 # ------------------------------------------------------------------------------
