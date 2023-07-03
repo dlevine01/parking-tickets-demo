@@ -1,8 +1,9 @@
 import pandas as pd
 import geopandas as gpd
-import plotly.express as px  # (version 4.7.0 or higher)
+import plotly.express as px  
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output  # pip install dash (version 2.0.0 or higher)
+from dash import Dash, Patch, dcc, html, Input, Output  # Dash > 2.9
+import numpy as np
 
 external_stylesheets = [
     "https://codepen.io/chriddyp/pen/bWLwgP.css",
@@ -13,6 +14,8 @@ external_stylesheets = [
 
 # create app
 app = Dash(__name__, external_stylesheets=external_stylesheets)
+
+print('initiate app')
 
 # to serve online
 server = app.server
@@ -27,11 +30,11 @@ server = app.server
 
 
 
-
+#----- load data
 # could this be read directly as geojson, not through geodataframe?
 tracts = (
     gpd.read_file(
-        'processed data/tracts_4326_w_pcts_simplified.json',
+        'processed data/tracts_4326_w_pcts_simplified_topo.json',
         dtype={'GEOID':'str'}
         )
     .set_index('GEOID')
@@ -53,14 +56,30 @@ tickets = (
 )
 
 violation_types = tickets.index.get_level_values('Violation Type').unique()
+INITIAL_TYPE = 'Street cleaning'
 
+
+#----- summarize initial data
 # sum by month for timeline
 total_tickets_by_month = (
     tickets
+    .loc[:,:,INITIAL_TYPE]
     .groupby('Issue Date')
     .sum()
     .rolling(3,1,center=True).mean()
-    .to_frame()
+    .reset_index()
+)
+
+# sum by tract for map
+total_tickets_by_tract = (
+    tickets
+    .loc[:,:,INITIAL_TYPE]
+    .groupby('GEOID')
+    .sum()
+    .reindex_like(tracts)
+    .fillna(0)
+    .astype(int)
+    .reset_index()
 )
 
 # total race pcts for citywide bars
@@ -74,35 +93,119 @@ total_race_pct = (
     .to_frame()
 )
 
-# initiate (empty) map with basemap base
-# (replace with spinner?)
-initial_map_fig = px.choropleth_mapbox(
+# generate empty race columns
+no_selection_race_pct = pd.DataFrame(index=['White','Black','Asian','Hispanic'],columns=['Selected area'],data=[0,0,0,0])
+
+race_bars_data = total_race_pct.join(no_selection_race_pct)
+
+NO_SELECTION_RACE_BARS_TITLE = 'Race and ethnicity citywide (select area on map to compare)'
+race_bars_title = NO_SELECTION_RACE_BARS_TITLE
+
+
+#----- initiate figures
+
+# create and configure map fig
+map_fig = px.choropleth_mapbox(
+    data_frame=total_tickets_by_tract, # can this be blank and filled by first fire of the callback?
+    color='tickets count',
+    geojson=tracts.geometry, # can I load this directly from url?
+    locations='GEOID',
+    color_continuous_scale='burg',
     mapbox_style='carto-positron',
+    hover_data={
+        'GEOID':False,
+        'tickets count':':.0f'
+    },
     zoom=9, 
-    center = {"lat": 40.7, "lon": -74}
+    center = {"lat": 40.7, "lon": -74},
 )
 
-# initial_timeline = px.line(
-#     total_tickets_by_month,
-#     title=''
-# )
+# customize legend
+map_fig.update_layout(
+    coloraxis_colorbar=dict(
+        title="Tickets",
+        orientation='h',
+        xanchor='left',
+        x=0,
+        yanchor='bottom',
+        y=0,
+        lenmode="fraction",
+        len=0.5,
+        thicknessmode='fraction',
+        thickness=0.035,
+    ),
+    margin=dict(l=0, r=0, t=0, b=0)
+)
 
-# initial_timeline.update_layout(
-#     xaxis=dict(
-#         rangeslider=dict(
-#             visible=True
-#         ),
-#         type="date"
-#     )
-# )
+# customize tract geometry shapes (hide border lines)
+map_fig.update_traces(
+    marker_opacity=0.75,
+    marker_line=dict(
+        width=0,
+        color='rgba(255,255,255,0)'
+    )
+)
 
-# initiate blank timeline; first callback call will fill it in
-# (do I need this?)
-initial_timeline = dict()
+# create and configure timeline fig
+
+timeline_fig = px.line(
+    total_tickets_by_month,
+    x='Issue Date',
+    y='tickets count',
+    title='',
+    height=350,
+    template='plotly_white',
+    hover_data={
+        'Issue Date':False,
+        'tickets count':'.0f'
+    }
+)
+
+timeline_fig.update_traces(
+    hovertemplate=None
+)
+
+timeline_fig.update_layout(
+    xaxis=dict(
+        rangeselector=dict(
+            visible=True
+        ),
+        type="date"
+    ),
+    yaxis_title="Tickets",
+    showlegend=False,
+    margin=dict(l=20, r=20, t=40, b=10),
+    font_family="'Open Sans', Helvetica, Arial, sans-serif",
+    hovermode='x',
+)
+
+timeline_fig.update_xaxes(rangeslider_thickness = 0.08)
+
+
+
+# create and configure race bars fig
+
+race_bars_fig = px.bar(
+    race_bars_data,
+    barmode='group',
+    title=race_bars_title,
+    height=250,
+    template='plotly_white'
+)
+
+race_bars_fig.update_layout(
+    margin=dict(l=20, r=20, t=100, b=10),
+    yaxis_title='Percent of population',
+    xaxis_title=None,
+    yaxis_tickformat='.0%',
+    legend_title='Area',
+    font_family="'Open Sans', Helvetica, Arial, sans-serif"
+)
 
 
 # ------------------------------------------------------------------------------
 # App layout
+
 app.layout = html.Div(id='app', children=[
 
     html.H1("Explore parking tickets by type"),
@@ -131,7 +234,7 @@ app.layout = html.Div(id='app', children=[
             # container and configuration for map figure
             dcc.Graph(
                 id='map', 
-                figure=initial_map_fig,
+                figure=map_fig,
                 config={
                     'displaylogo': False
                 },
@@ -149,7 +252,7 @@ app.layout = html.Div(id='app', children=[
             # container and configuration for timeline
             dcc.Graph(
                 id='timeline',
-                figure=initial_timeline,
+                figure=timeline_fig,
                 config={
                     'modeBarButtonsToRemove': ['zoom_in', 'zoom_out','autoscale'],
                     'displaylogo': False
@@ -159,7 +262,7 @@ app.layout = html.Div(id='app', children=[
             # container and configuration for race bars
             dcc.Graph(
                 id='race_bar_plot', 
-                figure={},
+                figure=race_bars_fig,
                 config={
                     'displayModeBar': False,
                     'displaylogo': False
@@ -181,20 +284,19 @@ app.layout = html.Div(id='app', children=[
 @app.callback(
     [Output(component_id='map_title', component_property='children'),
      Output(component_id='map', component_property='figure'),],
-     #Output(component_id='map', component_property='selectedData')],
     [Input(component_id='timeline',component_property='relayoutData'),
     Input(component_id='violation_type_selection', component_property='value')]
 )
 def update_map(selected_timeline_area,selected_violation):
     
-    # log what it's doing
-    # (werkzeug might be more useful but here's a summary )
+    # # log what it's doing
+    # # (werkzeug might be more useful but here's a summary )
     print("called 'update_map'")
     print(f" with 'selected_violation' = {selected_violation}")
-    print(f" with 'selected_timeline_area' = {selected_timeline_area}")
+    # print(f" with 'selected_timeline_area' = {selected_timeline_area}")
 
     # get time range from timeline, if the timeline has been selected
-    # (this selects highly granular timestamps; could amke this quantum; and also slightly delay the action until mouseup)
+    # (this selects highly granular timestamps; could make this quantum; and also slightly delay the action until mouseup)
     if selected_timeline_area is None:
         selected_timeline_area = dict()
 
@@ -224,69 +326,34 @@ def update_map(selected_timeline_area,selected_violation):
         .loc[:,slice(*selected_dates),selected_violation]
         .groupby('GEOID')
         .sum()
+        .reindex_like(tracts)
+        .fillna(0)
+        .astype(int)
         .reset_index()
+        .values
     )
 
-    # create and configure map fig
-    fig = px.choropleth_mapbox(
-        data_frame=selected_tickets,
-        color='tickets count',
-        geojson=tracts.geometry,
-        locations='GEOID',
-        color_continuous_scale='burg',
-        mapbox_style='carto-positron',
-        hover_data={
-            'GEOID':False,
-            'tickets count':':.0f'
-        },
-        zoom=9, 
-        center = {"lat": 40.7, "lon": -74},
-    )
+    # print(f" updated data: {selected_tickets[:3]}")
 
-    # customize legend
-    fig.update_layout(
-        coloraxis_colorbar=dict(
-            title="Tickets",
-            orientation='h',
-            xanchor='left',
-            x=0,
-            yanchor='bottom',
-            y=0,
-            lenmode="fraction",
-            len=0.5,
-            thicknessmode='fraction',
-            thickness=0.035,
-        ),
-        margin=dict(l=0, r=0, t=0, b=0),
-    )
-
-    # customize tract geometry shapes (hide border lines)
-    fig.update_traces(
-        marker_opacity=0.75,
-        marker_line=dict(
-            width=0,
-            color='rgba(255,255,255,0)'
-        )
-    )
-
-
-    return title, fig
+    # patch the updated data into the data field of the fig
+    patched_map_fig = Patch()
+    patched_map_fig['data'][0]['locations'] = selected_tickets[:,0]
+    patched_map_fig['data'][0]['z'] = selected_tickets[:,1]
+    
+    return title, patched_map_fig
 
 # to update timeline and race bars on selection of map or violation type
 @app.callback(
     [Output(component_id='race_bar_plot', component_property='figure'),
      Output(component_id='timeline', component_property='figure')],
     [Input(component_id='map', component_property='selectedData'),
-     Input(component_id='map',component_property='clickData'),
+    #  Input(component_id='map',component_property='clickData'),
      Input(component_id='violation_type_selection', component_property='value')]
 )
-def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_tract,selected_violation):
+def update_race_bars_and_timeline_from_map_selection(selected_map_area,selected_violation):
 
-    # log function call
-    print("called 'update_race_bars_and_timeline_from_map_selection'")
-
-    # get the tracts that were selected or clicked on map
-    # this handles a selection first, then a click if no selection. it's a little buggy; probably it whould use the last interaction to direct the control flow)
+    print('called update_race_bars_and_timeline')
+    # get the tracts that were selected on map
     
     # clear selection
     selected_GEOIDs = False
@@ -295,12 +362,10 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
     if bool(selected_map_area):
         selected_GEOIDs = [i['location'] for i in selected_map_area['points']]
 
-    elif clicked_tract:
-        selected_GEOIDs = [clicked_tract['points'][0]['location']]
+    # elif clicked_tract:
+    #     selected_GEOIDs = [clicked_tract['points'][0]['location']]
 
     if selected_GEOIDs:
-
-        print(f" with 'tracts_selected' including {selected_GEOIDs[0] if selected_GEOIDs else 'none'}")
 
         # subset tracts to selection
         tracts_selected = tracts.loc[selected_GEOIDs]
@@ -312,13 +377,17 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
                 /
                 (tracts_selected['Total population'].sum())
             )
-            .rename('Selected area')
-            .to_frame()
+            # .rename('Selected area')
+            # .to_frame()
+            .values
         )
 
-        race_bars_data = total_race_pct.join(selection_race_pct)
-
         race_bars_title = 'Race and ethnicity citywide and selected area'
+
+        # patch data and title to race bars fig
+        patched_race_bars = Patch()
+        patched_race_bars['data'][1]['y'] = selection_race_pct
+        patched_race_bars['layout']['title']['text'] = 'Race and ethnicity citywide and selected area'
 
         # recompute timeline from selected area and selected type
         selected_area_timeline_data = (
@@ -327,21 +396,29 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
             .groupby('Issue Date')
             .sum()
             .rolling(3,1,center=True).mean()
-            .reset_index()
+            .reindex(
+                timeline_fig['data'][0]['x']   # get the existing timeline x axis and reindex on this to align new y data with existing x ticks, because the filtered data can include months with no data
+            )
+            .values
         )
 
         timeline_title = 'Selected area'
+
+        # patch data and title to timeline
+        # ( could also _add_ the subset to the timeline to compare the selection to total .. )
+
+        patched_timeline = Patch()
+        patched_timeline['data'][0]['y'] = selected_area_timeline_data
+        patched_timeline['layout']['title'] = timeline_title
+
+        return patched_race_bars, patched_timeline
     
     else:
-        
-        print(" with no selection")
 
-        # generate empty race columns
-        no_selection_race_pct = pd.DataFrame(index=['White','Black','Asian','Hispanic'],columns=[''],data=[0,0,0,0])
-        
-        race_bars_data = total_race_pct.join(no_selection_race_pct)
-
-        race_bars_title = 'Race and ethnicity citywide (select area on map to compare)'
+        # patch zeros and title to race bars fig
+        patched_race_bars = Patch()
+        patched_race_bars['data'][1]['y'] = np.array([0,0,0,0])
+        patched_race_bars['layout']['title']['text'] = NO_SELECTION_RACE_BARS_TITLE
 
         # compute timeline from all tracts
         selected_area_timeline_data = (
@@ -350,64 +427,23 @@ def update_race_bars_and_timeline_from_map_selection(selected_map_area,clicked_t
             .groupby('Issue Date')
             .sum()
             .rolling(3,1,center=True).mean()
-            .reset_index()
+            .reindex(
+                timeline_fig['data'][0]['x']   # get the existing timeline x axis and reindex on this to align new y data with existing x ticks, because the filtered data can include months with no data
+            )
+            .values
         )
 
         timeline_title = 'Total citywide'
 
-    # generate race bars from whichever data created above
-    race_bars = px.bar(
-        race_bars_data,
-        barmode='group',
-        title=race_bars_title,
-        height=250,
-        template='plotly_white'
-    )
+        # patch data and title to timeline
+        # ( could also _add_ the subset to the timeline to compare the selection to total .. )
 
-    race_bars.update_layout(
-        margin=dict(l=20, r=20, t=100, b=10),
-        yaxis_title='Percent of population',
-        xaxis_title=None,
-        yaxis_tickformat='.0%',
-        legend_title='Area',
-        font_family="'Open Sans', Helvetica, Arial, sans-serif"
-    )
+        patched_timeline = Patch()
+        patched_timeline['data'][0]['y'] = selected_area_timeline_data
+        patched_timeline['layout']['title'] = timeline_title
 
-    # generate timeline from whichever data selected above
-    timeline = px.line(
-        selected_area_timeline_data,
-        x='Issue Date',
-        y='tickets count',
-        title= timeline_title,
-        height=350,
-        template='plotly_white',
-        hover_data={
-            'Issue Date':False,
-            'tickets count':'.0f'
-        }
-    )
+        return patched_race_bars, patched_timeline
 
-    timeline.update_traces(
-        hovertemplate=None
-    )
-
-    timeline.update_layout(
-        xaxis=dict(
-            rangeselector=dict(
-                visible=True
-            ),
-            type="date"
-        ),
-        yaxis_title="Tickets",
-        showlegend=False,
-        margin=dict(l=20, r=20, t=40, b=10),
-        font_family="'Open Sans', Helvetica, Arial, sans-serif",
-        hovermode='x',
-    )
-
-    timeline.update_xaxes(rangeslider_thickness = 0.08)
-
-    return race_bars, timeline
 
 # ------------------------------------------------------------------------------
 
