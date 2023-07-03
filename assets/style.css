@@ -1,0 +1,16 @@
+#components_container {
+    display: flex;
+    flex-direction: row
+}
+
+#map_container {
+    flex:5
+}
+
+#map {
+    height:70vh
+}
+
+#timeline_and_bars_container {
+    flex:3
+}

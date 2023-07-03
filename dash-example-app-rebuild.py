@@ -12,6 +12,9 @@ external_stylesheets = [
     'https://comptroller.nyc.gov/wp-content/themes/comptroller_theme_2021/css/custom2021.css?ver=1665673425'
 ]
 
+FIG_DISPLAY_CONFIG = {'displaylogo': False}
+INITIAL_VIOLATION_TYPE = 'Street cleaning'
+
 # create app
 app = Dash(__name__, external_stylesheets=external_stylesheets)
 
@@ -56,14 +59,12 @@ tickets = (
 )
 
 violation_types = tickets.index.get_level_values('Violation Type').unique()
-INITIAL_TYPE = 'Street cleaning'
-
 
 #----- summarize initial data
 # sum by month for timeline
 total_tickets_by_month = (
     tickets
-    .loc[:,:,INITIAL_TYPE]
+    .loc[:,:,INITIAL_VIOLATION_TYPE]
     .groupby('Issue Date')
     .sum()
     .rolling(3,1,center=True).mean()
@@ -73,7 +74,7 @@ total_tickets_by_month = (
 # sum by tract for map
 total_tickets_by_tract = (
     tickets
-    .loc[:,:,INITIAL_TYPE]
+    .loc[:,:,INITIAL_VIOLATION_TYPE]
     .groupby('GEOID')
     .sum()
     .reindex_like(tracts)
@@ -134,7 +135,8 @@ map_fig.update_layout(
         thicknessmode='fraction',
         thickness=0.035,
     ),
-    margin=dict(l=0, r=0, t=0, b=0)
+    margin=dict(l=0, r=0, t=0, b=0),
+
 )
 
 # customize tract geometry shapes (hide border lines)
@@ -177,6 +179,7 @@ timeline_fig.update_layout(
     margin=dict(l=20, r=20, t=40, b=10),
     font_family="'Open Sans', Helvetica, Arial, sans-serif",
     hovermode='x',
+    modebar_remove=['zoom_in', 'zoom_out','autoscale']
 )
 
 timeline_fig.update_xaxes(rangeslider_thickness = 0.08)
@@ -218,7 +221,7 @@ app.layout = html.Div(id='app', children=[
             id='violation_type_selection',
             options=violation_types,
             multi=True,
-            value=['Street cleaning'],
+            value=[INITIAL_VIOLATION_TYPE],
         )
 
     ]),
@@ -235,17 +238,11 @@ app.layout = html.Div(id='app', children=[
             dcc.Graph(
                 id='map', 
                 figure=map_fig,
-                config={
-                    'displaylogo': False
-                },
-                style={'height':'70vh'}
+                config=FIG_DISPLAY_CONFIG
             ),
-        ], 
-        
-        # set flex 5 width (could move to external stylesheet by id)
-        style={'flex':5}
-        
-        ),
+
+            html.P(children=['double-click to unselect'], id='double_click')
+        ]),
 
         html.Div(id='timeline_and_bars_container', children=[
 
@@ -253,26 +250,18 @@ app.layout = html.Div(id='app', children=[
             dcc.Graph(
                 id='timeline',
                 figure=timeline_fig,
-                config={
-                    'modeBarButtonsToRemove': ['zoom_in', 'zoom_out','autoscale'],
-                    'displaylogo': False
-                }
+                config=FIG_DISPLAY_CONFIG
             ),
 
             # container and configuration for race bars
             dcc.Graph(
                 id='race_bar_plot', 
                 figure=race_bars_fig,
-                config={
-                    'displayModeBar': False,
-                    'displaylogo': False
-                }
+                config=FIG_DISPLAY_CONFIG 
             )
-        ],style={'flex':3}
-        )
+        ])
 
-    ],style={'display': 'flex', 'flex-direction': 'row'}
-    )
+    ])
 
 ])
 
