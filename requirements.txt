@@ -1,4 +1,4 @@
-dash == 2.7 
+dash >= 2.9 
 geopandas == 0.12 
 pandas == 1.5 
 plotly == 5.9
