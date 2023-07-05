@@ -177,7 +177,7 @@ timeline_fig.update_layout(
     modebar_remove=['zoom_in', 'zoom_out','autoscale']
 )
 
-timeline_fig.update_xaxes(rangeslider_thickness = 0.08)
+timeline_fig.update_xaxes(rangeslider_thickness = 0)
 
 
 
