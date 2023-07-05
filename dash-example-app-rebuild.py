@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dash import Dash, Patch, dcc, html, Input, Output  # Dash > 2.9
 import numpy as np
+import json
 
 external_stylesheets = [
     "https://codepen.io/chriddyp/pen/bWLwgP.css",
@@ -25,23 +26,16 @@ server = app.server
 
 # ---------- read in data and create initial state
 
-
-
-# TODO spinner
-
-
-
-
-
 #----- load data
-# could this be read directly as geojson, not through geodataframe?
-tracts = (
-    gpd.read_file(
-        'processed data/tracts_4326_w_pcts_simplified_topo.json',
-        dtype={'GEOID':'str'}
-        )
-    .set_index('GEOID')
-)
+
+tracts = pd.read_csv(
+    'processed data/tracts_data.csv',
+    dtype={'GEOID':'str'}
+).set_index('GEOID')
+
+with open('processed data/tract geometry - simplified.json', 'r') as geojson_file:
+    tracts_geometry = json.load(geojson_file)
+# TODO read this geojson directly into the fontend, without passing it through this laoyout object. not simple to do, though.
 
 tickets = (
     pd.read_csv(
@@ -109,8 +103,9 @@ race_bars_title = NO_SELECTION_RACE_BARS_TITLE
 map_fig = px.choropleth_mapbox(
     data_frame=total_tickets_by_tract, # can this be blank and filled by first fire of the callback?
     color='tickets count',
-    geojson=tracts.geometry, # can I load this directly from url?
+    geojson=tracts_geometry,
     locations='GEOID',
+    featureidkey='properties.GEOID',
     color_continuous_scale='burg',
     mapbox_style='carto-positron',
     hover_data={
@@ -279,7 +274,8 @@ app.layout = html.Div(id='app', children=[
     [Output(component_id='map_title', component_property='children'),
      Output(component_id='map', component_property='figure'),],
     [Input(component_id='timeline',component_property='relayoutData'),
-    Input(component_id='violation_type_selection', component_property='value')]
+    Input(component_id='violation_type_selection', component_property='value')],
+    prevent_initial_call=True
 )
 def update_map(selected_timeline_area,selected_violation):
     
