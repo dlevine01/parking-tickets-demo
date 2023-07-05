@@ -1,4 +1,30 @@
-# this was the default created by VSCode:
+# this was recommended by https://towardsdatascience.com/deploy-containerized-plotly-dash-app-to-heroku-with-ci-cd-f82ca833375c
+
+FROM python:3.9-slim-buster
+
+WORKDIR /container_app
+
+# RUN pwd
+# RUN ls
+
+COPY ./requirements.txt /container_app/requirements.txt
+
+# RUN ls
+
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
+
+COPY . /container_app
+
+RUN useradd -m containerUser
+USER containerUser
+
+# filling in and hard-coding port number from example below + adding timeout
+CMD gunicorn --bind 0.0.0.0:7860 --timeout 1000 dash-example-app-rebuild:server
+
+
+
+# this was the default created by VSCode (should I keep any of this?):
 
 # # For more information, please refer to https://aka.ms/vscode-docker-python
 # FROM python:3.9-slim
@@ -27,6 +53,9 @@
 # CMD ["gunicorn", "--bind", "0.0.0.0:7860", "dash-example-app:app"]
 
 
+
+
+
 # this is recommended by https://towardsdatascience.com/how-to-deploy-a-panel-app-to-hugging-face-using-docker-6189e3789718
 
 # FROM python:3.9
@@ -46,33 +75,4 @@
 # CMD ["python", "dash-example-app.py"] 
 
 #  (does the rest of this apply for dash app?) , "--address", "0.0.0.0", "--port", "7860", "--allow-websocket-origin", "sophiamyang-panel-example.hf.space"]
-
-
-
-# this was recommended by https://towardsdatascience.com/deploy-containerized-plotly-dash-app-to-heroku-with-ci-cd-f82ca833375c
-
-FROM python:3.9-slim-buster
-
-WORKDIR /container_app
-
-# RUN pwd
-# RUN ls
-
-COPY ./requirements.txt /container_app/requirements.txt
-
-# RUN ls
-
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
-
-COPY . /container_app
-
-RUN useradd -m containerUser
-USER containerUser
-
-# filling in and hard-coding port number from example above
-CMD gunicorn --bind 0.0.0.0:7860 --timeout 1000 dash-example-app-rebuild:server
-
-
-
 
