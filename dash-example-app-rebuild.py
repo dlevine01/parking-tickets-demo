@@ -206,7 +206,7 @@ race_bars_fig.update_layout(
 
 app.layout = html.Div(id='app', children=[
 
-        html.H1("Explore parking tickets by type"),
+        html.H1("Explore tickets by type"),
 
         html.Div(id='selector_container', children=[
         
@@ -224,7 +224,7 @@ app.layout = html.Div(id='app', children=[
 
             html.Div(id='map_container', children=[
             
-                dcc.Loading(id='map_loading', type='circle', children = [
+                dcc.Loading(id='map_loading', type='default', children = [
 
                     # initiates title; first callback will overwrite this title
                     html.H6(children=['map loading...'], id='map_title'),
